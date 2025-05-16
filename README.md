@@ -265,6 +265,94 @@ Nowo utworzony zespół szybkiego reagowania natychmiastowo potrzebuje tymczasow
 Utwórz nowego użytkownika rapid-response-agent i nadaj mu dostęp read-only do namespace ogloszenia-krytyczne. **3pkt**
 
 Potrzebujemy dodatkowo kont serwisowych dla zautomatyzowanych narzędzi zespołu szybkiego reagowania. Utwórz specjalną rolę log-reader w namespace ogloszenia-krytyczne, która umożliwia wykonywanie tylko operacji *get pods* oraz *list pods* na podach, oraz - co kluczowe - daje dostęp do zasobu *logs* wewnątrz podów. Utwórz konto serwisowe automated-response-agent w namespace ogloszenia-krytyczne i przypisz mu rolę log-reader. **15pkt**
+#### Rozwiązanie
+**Krok 1: Utworzenie Dostępowej Konfiguracji dla Użytkownika `rapid-response-agent` (Dostęp Read-Only) (3 pkt)**
+
+*   **Cel:** Zapewnienie, że uwierzytelniony w klastrze użytkownik o nazwie `rapid-response-agent` będzie miał uprawnienia do odczytu zasobów (pods, services, deployment, itp.) tylko w namespace `ogloszenia-krytyczne`.
+*   **Metoda:** Użycie `RoleBinding` w namespace `ogloszenia-krytyczne`, który powiąże nazwę użytkownika `rapid-response-agent` z wbudowaną rolą `view` (ClusterRole dająca uprawnienia do odczytu większości zasobów w obrębie scope'u RoleBinding).
+*   **Działanie:** Zapisz poniższą definicję jako `rapid-response-rbac.yaml`:
+
+```yaml
+# rapid-response-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rapid-response-agent-view # Nazwa RoleBinding
+  namespace: ogloszenia-krytyczne # Namespace, w którym obowiązuje to powiązanie
+subjects:
+- kind: User # Typ podmiotu - Użytkownik (człowiek logujщcy sie)
+  name: rapid-response-agent # <<< IMIĘ UŻYTKOWNIKA >>>
+  apiGroup: rbac.authorization.k8s.io # Grupa API dla użytkowników/grup
+roleRef:
+  kind: ClusterRole # Odniesienie do istniejcej roli (wbudowana ClusterRole)
+  name: view # Nazwa wbudowanej roli dajcej read-only dostęp
+  apiGroup: rbac.authorization.k8s.io # Grupa API dla ról i powiązań
+```
+
+*   **Komenda:** Zastosuj manifest.
+    ```bash
+    kubectl apply -f rapid-response-rbac.yaml
+    ```
+*   **Weryfikacja (3 pkt):** Sprawdź, czy RoleBinding został utworzony.
+    ```bash
+    kubectl get rolebinding rapid-response-agent-view --namespace ogloszenia-krytyczne
+    ```
+    *(Uwaga: To definiuje uprawnienia dla nazwy użytkownika. Samo konto/metoda uwierzytelnienia dla "rapid-response-agent" musi być skonfigurowana niezależnie na poziomie API Servera klastra)*.
+
+**Krok 2: Utworzenie Konta Serwisowego i Dedykowanej Roli do Odczytu Logów (15 pkt)**
+
+*   **Cel:** Utworzenie konta serwisowego `automated-response-agent` dla zautomatyzowanych narzędzi oraz dedykowanej, minimalistycznej roli `log-reader`, która pozwala tylko na listowanie/pobieranie podów i logów podów, i powiązanie konta serwisowego z tą rolą, wszystko w namespace `ogloszenia-krytyczne`.
+*   **Metoda:** Utworzenie `ServiceAccount`, `Role` ze specyficznymi regułami dla `pods` i `pods/log`, a następnie `RoleBinding` łączącego ServiceAccount z tą rolą, wszystkie zasoby w namespace `ogloszenia-krytyczne`.
+*   **Działanie:** Zapisz poniższe definicje jako `automated-rbac.yaml`:
+
+```yaml
+# automated-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: automated-response-agent # Nazwa konta serwisowego
+  namespace: ogloszenia-krytyczne # Namespace konta serwisowego
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role # Definiujemy nową, niestandardową rolę
+metadata:
+  name: log-reader # Nazwa dedykowanej roli
+  namespace: ogloszenia-krytyczne # Namespace, w którym rola jest zdefiniowana
+rules:
+# Reguły dla zasobu 'pods': pozwalają tylko na get i list
+- apiGroups: [""] # "Pusta string oznacza core API group (w tym zarządzenie Podami, Services, itp.)
+  resources: ["pods"] # Dotyczy zasobu "pods"
+  verbs: ["get", "list"] # Dozwolone operacje: odczyt pojedynczego poda, listing podów
+# Reguły dla zasobu 'pods/log': pozwalają na odczyt logów podów
+- apiGroups: [""] # Ponownie core API group
+  resources: ["pods/log"] # Dotyczy SUB-zasobu "log" podów
+  verbs: ["get", "list"] # Dozwolone operacje: pobranie logów
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding # Powiązanie (binding) między podmiotem (ServiceAccount) a rolą
+metadata:
+  name: automated-response-agent-log-reader # Nazwa RoleBinding
+  namespace: ogloszenia-krytyczne # Namespace, w którym obowiązuje to powiązanie
+subjects:
+- kind: ServiceAccount # Typ podmiotu - Konto serwisowe
+  name: automated-response-agent # Nazwa konta serwisowego
+  namespace: ogloszenia-krytyczne # WAŻNE: Namespace, w którym znajduje się konto serwisowe
+roleRef:
+  kind: Role # Odniesienie do roli - nasza niestandardowa Role
+  name: log-reader # Nazwa naszej roli
+  apiGroup: rbac.authorization.k8s.io # Grupa API dla ról i powiązań
+```
+
+*   **Komenda:** Zastosuj manifest.
+    ```bash
+    kubectl apply -f automated-rbac.yaml
+    ```
+*   **Weryfikacja (15 pkt):** Sprawdź, czy Konto Serwisowe, Rola i RoleBinding zostały utworzone.
+    ```bash
+    kubectl get serviceaccount automated-response-agent --namespace ogloszenia-krytyczne
+    kubectl get role log-reader --namespace ogloszenia-krytyczne -o yaml # Opis YAML pokaze zdefiniowane reguły
+    kubectl get rolebinding automated-response-agent-log-reader --namespace ogloszenia-krytyczne
+    ```
 
 ### Misja 9 - operacja Slinky Slingshot
 Rosyjska machina nie ustaje w zalewaniu nas treściami propagandowymi używając wszelkich możliwych kanałów do siania dezinformacji, podgrzewania społecznej niezgody i szczucia na naszych sojuszników. Czas coś z tym zrobić! Masz za zadanie utworzenie Portalu Do Spraw Dez-DezInformacji, w skrócie PDSDDI (prawda, że chwytliwa nazwa?). Portal ma być oparty o wordpress. Utwórz namespace pdsddi i wdróż w nim wordpress.
