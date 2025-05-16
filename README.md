@@ -1,29 +1,10 @@
-# Witamy w finale!
-Potyczki Młodych Adminów 2025
-
-## Wstęp
-
-Tegoroczne zadania będą testem nie tylko znajomości Kubernetes i Ranchera, ale też działania pod presją, ze szczególnym uwzględnieniem zagadnień bezpieczeństwa.
-
-Tematem konkursu jest praca w jednej z "trzyliterowych służb" - tak tajnych, że nawet nie wymawiamy głośno tych liter. Dostaniemy trochę typowo administracyjnych zadaniań, bo przecież tajne systemy też wymagają obsługi i utrzymania - ale też zmierzymy się z działaniami agentów Rosyjskich, których aktywność będzie wymagała podjęcia odpowiednich kroków!
-
-Powodzenia!
-
----
-### Misja specjalna
-
-Specjalna operacja woj... a nie, czekaj, nie mamy na to kilku lat - MISJA specjalna zostanie ogłoszona o czasie T+15minut. Obecność obowiązkowa. Misja może odmienić losy kraju - a nawet tego konkursu!
-
-Proszę o przygotowanie sobie następujących linków (na razie pozostają prywatne, zostaną upublicznione po ogłoszeniu):
-
-https://github.com/jbiniek/potyczki25-doomwar
-
-https://github.com/jbiniek/potyczki25-moonlanding
+# Dokumentacja Zespół 7 
 
 ### Misja 0 - kryptonim "Red Tape"
 Najlepiej napisany program i najlepiej wdrożony system jest tykającą bombą bez odpowiedniej dokumentacji. Nikt nie lubi jej pisać, ale jest kluczowa dla łatwości późniejszego utrzymywania i efektywnej współpracy - a także do sprawdzania zadań! Dlatego udokumentuj wszystkie zadania, co najmniej oznaczając te które zostały wykonane, bo **tylko te zostaną sprawdzone**. Niektóre zadania wymagają pisemnej odpowiedzi, umieść je też w dokumentacji. Zalecany - nie, JEDYNIE SŁUSZNY - sposób na przedstawienie dokumentacji to utworzenie repozytorium GitHub (polecam utworzenie forka tego repo).
 
 Opisz kroki wykonane w celu realizacji zadania, szczególnie lokalizacje zasobów, użyte opcje i komendy - nie musisz tego robić bardzo dokładnie, ale w razie wątpliwości będą one działać na twoją korzyść. Na przykład jeśli zadanie nie zostało do końca wykonane, ale znacząca część kroków jest opisana poprawnie, zaliczę za to częściowe punkty. Albo jeśli zadanie zostało wykonane, ale nie w sposób jakiego oczekiwałem, to opis będzie kluczem do uzyskania za nie punktów. To, co nie jest opisane, a nie jest oczywiste z interfejsu Ranchera, będzie rozstrzygane na twoją niekorzyść!
+***GOTOWE***
 
 ### Misja 1 - operacja "Otwarte Okno"
 Potrzebujemy nowego serwera webowego do ogłaszania krytycznych informacji ze Sztabu Zarządzania Kryzysowego, ale minister cały dzień jadł ośmiorniczki i dlatego dopiero teraz dotarły rozkazy. Wszyscy inni poszli już do domu, więc cała nadzieja w waszym zespole.
@@ -38,6 +19,8 @@ Potrzebujemy Persistent Storage, szybko! Tylko musi być taki, żeby umożliwia�
 
 Zainstaluj rozwiązanie typu software-defined storage w najnowszej stabilnej wersji na klastrze "potyczki", ustawiając w konfiguracji instalacyjnej 1 replikę i domyślny StorageClass. **5pkt**
 Sukces misji oznacza działającą aplikację storage oraz dostępną StorageClass.
+
+
 
 ### Misja 3 - operacja "Koci Pazur"
 Kot prezesa się nudzi, należy mu zapewnić jakąś rozrywkę.
