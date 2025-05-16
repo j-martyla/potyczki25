@@ -119,6 +119,15 @@ Sukces misji oznacza działającą aplikację storage oraz dostępną StorageCla
 ### Misja 3 - operacja "Koci Pazur"
 Kot prezesa się nudzi, należy mu zapewnić jakąś rozrywkę.
 Dodaj nowe repozytorium do katalogu aplikacji Ranchera. URL repo: https://rancher.github.io/rodeo **5pkt**
+#### Rozwiązanie
+1. Wchodzimy na WebUI ranchera
+2. Przechodzimy do zakładki `Apps > Repositories`
+3. Klikamy `Create`
+4. Wpisujemy nazwe oraz podajemy URL
+5. Po zakończeniu przechodzimy do `Apps > Charts`
+6. Filtrujemy tylko repozytorium o naszej nazwie
+7. Wybieramy gre i ją pobieramy
+8. Następnie otwieramy nasz URL gry w przeglądarce. Nasza gra jest [tutaj](http://tetris.default.193.187.67.116.sslip.io/)
 
 Zainstaluj dowolną grę z nowo dodanego repo. **5 pkt**
 
