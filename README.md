@@ -230,23 +230,6 @@ Zbadaj wersję Kubernetes działającą na klastrze pod kątem znanych podatnoś
         ```
         _Możesz dodać flagę `--allow-missing-images` jeśli masz problemy z pobieraniem obrazów._
 
-    **B. Aktualizacja binarek Kubernetesa na KAŻDYM węźle (Control Plane i Workerach):**
-    Po udanym upgrade Control Plane, musisz zaktualizować binarki `kubelet`, `kubectl` i `kubeadm` na *każdym* węźle w klastrze (włączając węzeł Control Plane, na którym wykonałeś poprzedni krok).
-    *   Zaloguj się przez SSH na dany węzeł.
-    *   Zaktualizuj listę pakietów i zainstaluj wskazaną wersję 1.26.x (np. 1.26.13-00):
-        ```bash
-        sudo apt-get update
-        # Znajdź dokładną dostępną wersję: apt-cache madison kubeadm
-        sudo apt-get install -y kubelet=1.26.13-00 kubectl=1.26.13-00 kubeadm=1.26.13-00
-        ```
-        _Uwaga: Dokładna wersja (np. `1.26.13-00`) musi być dostępna w repozytoriach pakietów `apt`. Sprawdź `apt-cache madison <pakiet>`._
-    *   Przeładuj konfigurację systemd i zrestartuj kubeleta:
-        ```bash
-        sudo systemctl daemon-reload
-        sudo systemctl restart kubelet
-        ```
-    *   Powtórz ten krok dla **WSZYSTKICH** węzłów.
-
 6.  **Zweryfikuj zaktualizowaną wersję Kubernetes:**
     Ponownie sprawdź wersję z maszyny, z której operujesz `kubectl`.
     ```bash
