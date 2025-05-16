@@ -142,6 +142,118 @@ Zbadaj czy istnieją podatności dla wersji Kubernetes uruchomionej na klastrze 
 Zbadaj czy istnieją podatności dla węzła (node) klastra potyczki - podaj ich liczbę i jeśli nie jest równa zero, dokonaj patchowania i aktualizacji systemu. **6pkt**
 
 Ciekawe czy wrogie systemy mają podobne podatności, może dałoby się to wykorzystać?...
+#### Rozwiązanie
+##### Krok 1: Instalacja NeuVector (5pkt)
+
+Zainstaluj NeuVector w najnowszej stabilnej wersji przy użyciu Helm.
+
+1.  **Dodaj repozytorium Helm NeuVector:**
+    ```bash
+    helm repo add neuvector helm repo add neuvector https://neuvector.github.io/neuvector-helm/
+    helm repo update
+    ```
+
+2.  **Zainstaluj NeuVector:**
+    Zaleca się instalację w dedykowanej przestrzeni nazw `neuvector`.
+    ```bash
+    helm install neuvector neuvector/core --namespace neuvector --create-namespace
+    ```
+
+3.  **Zweryfikuj instalację:**
+    Sprawdź, czy wszystkie pody NeuVector uruchomiły się poprawnie. Może to potrwać kilka minut.
+    ```bash
+    kubectl get pods -n neuvector
+    ```
+    Upewnij się, że wszystkie pody są w stanie `Running`.
+
+##### Krok 2: Włączenie Funkcji Auto-scan (1pkt)
+
+Włącz automatyczne skanowanie w konfiguracji NeuVector.
+
+1.  **Zastosuj aktualizację konfiguracji przez Helm:**
+    Użyj polecenia `helm upgrade`, aby zmodyfikować istniejącą instalację, włączając flagę `global.autoScan`.
+    ```bash
+    helm upgrade neuvector neuvector/core \
+      --namespace neuvector \
+      -- Reuse values, just set autScan=true \
+      --set global.autoScan=true
+    ```
+
+2.  **Zweryfikuj zmianę:**
+    Sprawdź ConfigMap NeuVector, aby upewnić się, że opcja `autoScan` została ustawiona na `true`.
+    ```bash
+    kubectl get cm neuvector-global -n neuvector -o yaml | grep -i autoScan
+    ```
+    Oczekiwany wynik powinien zawierać linię podobną do `autoScan: "true"`.
+
+##### Krok 3: Skanowanie Podatności Wersji Kubernetes i Upgrade (5pkt)
+
+Zbadaj wersję Kubernetes działającą na klastrze pod kątem znanych podatności i dokonaj upgrade'u do wersji 1.26.x, jeśli istnieją podatności.
+
+1.  **Sprawdź aktualną wersję Kubernetes:**
+    ```bash
+    kubectl version --short | grep Server
+    ```
+
+2.  **Zainstaluj Trivy:**
+    NeuVector ma wbudowane funkcje skanowania, ale na potrzeby tego zadania użyjemy popularnego narzędzia CLI - Trivy (od Aqua Security, podobnie jak NeuVector). Zainstaluj Trivy na maszynie, z której operujesz:
+    ```bash
+    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+    ```
+
+3.  **Zeskanuj klaster pod kątem podatności związanych z konfiguracją klastra/wersją K8s:**
+    ```bash
+    trivy k8s cluster --vuln-type config --format json > cluster-scan.json
+    ```
+    _Uwaga: Pełne skanowanie klastra przez Trivy może potrwać kilka minut._
+
+4.  **Policz znalezione podatności CVE w konfiguracji klastra:**
+    Użyj `jq` do parsowania wyników.
+    ```bash
+    VULN_COUNT=$(jq '[.[] | select(.Type=="Misconfiguration")] | length' cluster-scan.json)
+    echo "Znaleziono $VULN_COUNT podatności konfiguracji/wersji K8s."
+    ```
+    _Uwaga: Czasami Trivy klasyfikuje problemy specyficzne dla wersji/konfiguracji K8s jako `Misconfiguration`, a nie bezpośrednio `CVE` związane z binarkami. W rzeczywistości obie kategorie mogą być ważne._
+
+5.  **Wykonaj upgrade klastra, jeśli znaleziono podatności:**
+    **JEŚLI liczba znalezionych podatności jest większa od zera (`$VULN_COUNT -ne 0`) LUB jeśli aktualna wersja K8s jest znacząco niższa niż 1.26.x**, przeprowadź upgrade klastra do wersji 1.26.x (np. 1.26.13 jako ostatni patch, jeśli dostępny w repozytoriach pakietów).
+
+    **A. Upgrade Control Plane (wykonaj TYLKO na węźle Control Plane/Master):**
+    *   Zaloguj się przez SSH do węzła Control Plane.
+    *   Zaplanuj upgrade, aby zobaczyć sugerowane wersje:
+        ```bash
+        sudo kubeadm upgrade plan
+        ```
+    *   Zastosuj upgrade (wybierz najnowszy dostępny patch w serii 1.26.x, np. v1.26.13):
+        ```bash
+        sudo kubeadm upgrade apply v1.26.13 --allow-missing-images
+        ```
+        _Możesz dodać flagę `--allow-missing-images` jeśli masz problemy z pobieraniem obrazów._
+
+    **B. Aktualizacja binarek Kubernetesa na KAŻDYM węźle (Control Plane i Workerach):**
+    Po udanym upgrade Control Plane, musisz zaktualizować binarki `kubelet`, `kubectl` i `kubeadm` na *każdym* węźle w klastrze (włączając węzeł Control Plane, na którym wykonałeś poprzedni krok).
+    *   Zaloguj się przez SSH na dany węzeł.
+    *   Zaktualizuj listę pakietów i zainstaluj wskazaną wersję 1.26.x (np. 1.26.13-00):
+        ```bash
+        sudo apt-get update
+        # Znajdź dokładną dostępną wersję: apt-cache madison kubeadm
+        sudo apt-get install -y kubelet=1.26.13-00 kubectl=1.26.13-00 kubeadm=1.26.13-00
+        ```
+        _Uwaga: Dokładna wersja (np. `1.26.13-00`) musi być dostępna w repozytoriach pakietów `apt`. Sprawdź `apt-cache madison <pakiet>`._
+    *   Przeładuj konfigurację systemd i zrestartuj kubeleta:
+        ```bash
+        sudo systemctl daemon-reload
+        sudo systemctl restart kubelet
+        ```
+    *   Powtórz ten krok dla **WSZYSTKICH** węzłów.
+
+6.  **Zweryfikuj zaktualizowaną wersję Kubernetes:**
+    Ponownie sprawdź wersję z maszyny, z której operujesz `kubectl`.
+    ```bash
+    kubectl version --short | grep Server
+    ```
+    Powinna teraz wskazywać wersję 1.26.x.
+**U nas musieliśmy zaktualizować kubernetsy do wersji: v1.26.15+rke2r1**
 
 ### Misja 5 - operacja Czyste Ręce
 Wdrożenie AI byłoby niesłychanie użyteczne w naszych zadaniach, idealnie byłoby zacząć od narzędzia Ollama. Ale trzeba  się upewnić, że te obrazy nie zawierają podatności - najpierw musimy je przeskanować! 
