@@ -4,7 +4,8 @@
 Najlepiej napisany program i najlepiej wdrożony system jest tykającą bombą bez odpowiedniej dokumentacji. Nikt nie lubi jej pisać, ale jest kluczowa dla łatwości późniejszego utrzymywania i efektywnej współpracy - a także do sprawdzania zadań! Dlatego udokumentuj wszystkie zadania, co najmniej oznaczając te które zostały wykonane, bo **tylko te zostaną sprawdzone**. Niektóre zadania wymagają pisemnej odpowiedzi, umieść je też w dokumentacji. Zalecany - nie, JEDYNIE SŁUSZNY - sposób na przedstawienie dokumentacji to utworzenie repozytorium GitHub (polecam utworzenie forka tego repo).
 
 Opisz kroki wykonane w celu realizacji zadania, szczególnie lokalizacje zasobów, użyte opcje i komendy - nie musisz tego robić bardzo dokładnie, ale w razie wątpliwości będą one działać na twoją korzyść. Na przykład jeśli zadanie nie zostało do końca wykonane, ale znacząca część kroków jest opisana poprawnie, zaliczę za to częściowe punkty. Albo jeśli zadanie zostało wykonane, ale nie w sposób jakiego oczekiwałem, to opis będzie kluczem do uzyskania za nie punktów. To, co nie jest opisane, a nie jest oczywiste z interfejsu Ranchera, będzie rozstrzygane na twoją niekorzyść!
-***GOTOWE***
+#### Rozwiązanie
+- ***GOTOWE***
 
 ### Misja 1 - operacja "Otwarte Okno"
 Potrzebujemy nowego serwera webowego do ogłaszania krytycznych informacji ze Sztabu Zarządzania Kryzysowego, ale minister cały dzień jadł ośmiorniczki i dlatego dopiero teraz dotarły rozkazy. Wszyscy inni poszli już do domu, więc cała nadzieja w waszym zespole.
@@ -13,6 +14,62 @@ Na klastrze "potyczki" utwórz projekt "szk-server" a w nim namespace "ogloszeni
 - Instrukcje mówią o wysokiej dostępności tej usługi - nie masz dostępu do większej liczby maszyn, więc zrób co się da, żeby zwiększyć jej dostępność w obrębie istniejących zasobów **3pkt**
 - Skonfiguruj serwer aby serwował załączony plik index.html **4pkt**
 - Zapewnij dostępność usługi na internet. Nie masz czasu czekać do jutra aż administratorzy sieci udostępnią ci firmowy DNS, a potrzebujesz szybko przetestować dostępność, więc wymyśl jak zapewnić rozwiązywalny url wskazujący na IP hosta, na którym jest twój klaster "potyczki". **18pkt** (pełnym sukcesem operacji jest podanie adresu typu ogloszenia-krytyczne.xxxx.xxx rozwiązywalnego przy pomocy publicznego DNS z internetu, pod którym zgłosi się działająca strona internetowa);
+#### Rozwiązanie
+**Krok 1: Utworzenie Projektu/Namespace**
+
+*   **Cel:** Logiczna izolacja zasobów dla serwera w dedykowanej przestrzeni nazw.
+*   **Komenda:**
+    ```bash
+    kubectl create namespace ogloszenia-krytyczne
+    ```
+*   **Weryfikacja:** `kubectl get namespaces`
+
+**Krok 2: Przygotowanie Treści HTML i utworzenie ConfigMap**
+
+*   **Cel:** Udostępnienie pliku `index.html` w klastrze w formie ConfigMap, aby mógł być podmontowany do serwera webowego.
+*   **Komenda:** (Zakładając, że plik `index.html` znajduje się w bieżącym katalogu)
+    ```bash
+    kubectl create configmap ogloszenia-html --namespace=ogloszenia-krytyczne --from-file=index.html
+    ```
+*   **Weryfikacja:** `kubectl get configmap ogloszenia-html --namespace=ogloszenia-krytyczne`
+
+**Krok 3: Wdrożenie Serwera Webowego (Nginx)**
+
+*   **Cel:** Uruchomienie serwera Nginx w najnowszej wersji, serwującego plik z ConfigMap, z konfiguracją zapewniającą podstawową wysoką dostępność (3 repliki, rozłożenie na węzłach, sondy zdrowia).
+*   **Komenda:** (Zastosowanie manifestu `deployment.yaml` podanego wcześniej)
+    ```bash
+    kubectl apply -f deployment.yaml
+    ```
+*   **Weryfikacja:** `kubectl get deployment ogloszenia-nginx --namespace=ogloszenia-krytyczne` oraz `kubectl get pods --namespace=ogloszenia-krytyczne -l app=ogloszenia-nginx-app` (poczekaj aż pody będą Running i Ready).
+
+**Krok 4: Utworzenie Usługi Dostępnej w Klastrze (ClusterIP)**
+
+*   **Cel:** Udostępnienie serwera Nginx pod stabilnym adresem IP wewnątrz klastra (dostęp dla innych usług w klastrze, jeśli zajdzie taka potrzeba).
+*   **Komenda:** (Zastosowanie manifestu `service-internal.yaml` podanego wcześniej)
+    ```bash
+    kubectl apply -f service-internal.yaml
+    ```
+*   **Weryfikacja:** `kubectl get service ogloszenia-local --namespace=ogloszenia-krytyczne`
+
+**Krok 5: Udostępnienie Usługi w Internecie (LoadBalancer)**
+
+*   **Cel:** Uzyskanie publicznego adresu IP dla usługi, umożliwiającego dostęp z zewnątrz.
+*   **Komenda:** (Zastosowanie manifestu `service-external.yaml` podanego wcześniej)
+    ```bash
+    kubectl apply -f service-external.yaml
+    ```
+*   **Weryfikacja:** `kubectl get service ogloszenia-public --namespace=ogloszenia-krytyczne -o wide` (Najważniejsza jest kolumna `EXTERNAL-IP` - poczekaj, aż pojawi się adres IP, a nie będzie `<pending>`).
+
+**Krok 6: Uzyskanie Publicznie Rozwiązywalnego URL**
+
+*   **Cel:** Skonstruowanie adresu URL, który będzie rozwiązywalny z Internetu bez konieczności konfiguracji w firmowym DNS, wykorzystując publiczny IP z Krok 5 i serwisy typu `nip.io` lub `sslip.io`.
+*   **Komendy:** (Wykonaj po upewnieniu się, że w Kroku 5 pojawił się EXTERNAL-IP)
+    ```bash
+    EXTERNAL_IP=$(kubectl get service ogloszenia-krytyczne-public --namespace=ogloszenia-krytyczne -o=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    PUBLIC_URL="ogloszenia-krytyczne.${EXTERNAL_IP}.nip.io" # lub ogloszenia-krytyczne.${EXTERNAL_IP}.sslip.io
+    echo "Publiczny URL do ogłoszeń: http://${PUBLIC_URL}/"
+    ```
+*   **Weryfikacja:** Otwórz wygenerowany URL w przeglądarce z Internetu. Powinieneś zobaczyć zawartość pliku `index.html`.
 
 ### Misja 2 - kryptonim "Long Horn"
 Potrzebujemy Persistent Storage, szybko! Tylko musi być taki, żeby umożliwiał replikację! Wprawdzie i tak mamy tylko jeden serwer w klastrze, więc musimy ograniczyć liczbę replik do 1, ale sama obsługa replikacji jest ważna dla morale dowództwa - nieważne, że działa tylko na papierze... Nfs provisioner jest wykluczony, potrzebne jest coś lepszego. Gdyby tylko w Rancherze istniało jakieś repozytorium z łatwym w instalacji i obsłudze rozwiązaniem storage dla Kubernetes...
