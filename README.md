@@ -76,8 +76,45 @@ Potrzebujemy Persistent Storage, szybko! Tylko musi być taki, żeby umożliwia�
 
 Zainstaluj rozwiązanie typu software-defined storage w najnowszej stabilnej wersji na klastrze "potyczki", ustawiając w konfiguracji instalacyjnej 1 replikę i domyślny StorageClass. **5pkt**
 Sukces misji oznacza działającą aplikację storage oraz dostępną StorageClass.
+#### Rozwiązanie
+1.  **Ustaw kontekst `kubectl` na klaster docelowy** (np. "potyczki", jeśli taki jest jego nazwa w Twojej konfiguracji kubeconfig):
+    ```bash
+    kubectl config use-context potyczki
+    ```
 
+2.  **Dodaj oficjalne repozytorium Helm dla Longhorna:**
+    ```bash
+    helm repo add longhorn https://charts.longhorn.io
+    ```
 
+3.  **Zaktualizuj lokalną listę repozytoriów Helm:**
+    ```bash
+    helm repo update
+    ```
+
+4.  **Zainstaluj Longhorna przy użyciu Helm.** Installacja odbędzie się w dedykowanej przestrzeni nazw `longhorn-system`. Kluczowym elementem jest opcja `--set defaultSettings.replicaCount=1`, która nadpisuje domyślną liczbę replik (zazwyczaj 3) na wymaganą 1 replikę. Flagę `--create-namespace` dodajemy, aby Helm automatycznie utworzył przestrzeń nazw, jeśli jeszcze nie istnieje.
+    ```bash
+    helm install longhorn longhorn/longhorn \
+      --namespace longhorn-system \
+      --create-namespace \
+      --set defaultSettings.replicaCount=1
+    ```
+    *Wyjaśnienie parametrów:*
+    *   `helm install longhorn longhorn/longhorn`: Instaluje chart `longhorn/longhorn` pod nazwą `longhorn`.
+    *   `--namespace longhorn-system`: Określa przestrzeń nazw do instalacji.
+    *   `--create-namespace`: Tworzy przestrzeń nazw `longhorn-system`, jeśli jej nie ma.
+    *   `--set defaultSettings.replicaCount=1`: Ustawia domyślną liczbę replik dla nowych wolumenów na 1.
+
+5.  **Ustaw StorageClass `longhorn` jako domyślną (jeśli nie została ustawiona automatycznie).** Po instalacji Longhorn tworzy StorageClass o nazwie `longhorn`. Aby PV utworzone bez jawnego określenia StorageClass były obsługiwane przez Longhorn, należy je oznaczyć jako domyślne.
+    *   Najpierw sprawdź, czy StorageClass `longhorn` jest już domyślna (szukaj adnotacji `[default]` w kolumnie `RECLAIMPOLICY` lub `PROVISIONER`).
+        ```bash
+        kubectl get storageclass
+        ```
+    *   Jeśli nie jest domyślna, użyj poniższej komendy. Pamiętaj, aby upewnić się, że żadna inna StorageClass nie jest obecnie oznaczona jako domyślna w klastrze (lub usuń domyślność innej przed dodaniem do Longhorna).
+        ```bash
+        kubectl patch storageclass longhorn \
+          -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "true"}}}'
+        ```
 
 ### Misja 3 - operacja "Koci Pazur"
 Kot prezesa się nudzi, należy mu zapewnić jakąś rozrywkę.
